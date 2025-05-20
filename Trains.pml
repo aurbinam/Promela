@@ -1,157 +1,89 @@
-// =============================================
-// CHANNELS (for communication between signals and boxes)
-// =============================================
+#define train_in 1; // a bit
 
-// Block section channels (trains pass here)
-chan BlockSecAB = [1] of {int}; // Trains from A to B
-chan BlockSecBC = [1] of {int}; // Trains from B to C
+// example mtype declaration
+mtype = { green, red, attention, attention_ack };
 
-// Channels for communication between Signals and SignalBoxes
-chan CircuitA = [0] of {byte};    // SignalA → SignalBoxA (e.g., request to enter)
-chan SigChanA = [0] of {byte};    // SignalBoxA → SignalA (e.g., green light)
+// channels
+chan BlockSecAB = [2] of { bit }; 
+chan BlockSecBC = [2] of { bit }; 
+chan CircuitA = [1] of { bit }; 
+chan SigChanA [0] of { mtype }; 
+chan BellAB = [0] of { mtype }; 
+chan BellBA = [0] of { mtype };
 
-// You'll need similar channels for SignalB <→ SignalBoxB and SignalC <→ SignalBoxC
-chan CircuitB = [0] of {byte};
-chan SigChanB = [0] of {byte};
+// more are required...
 
-chan CircuitC = [0] of {byte};
-chan SigChanC = [0] of {byte};
+proctype SignalA(chan out_track, toSigBox, fromSigBox) {
+    mtype colour = red;
 
-// Bell line messages (between signalboxes, e.g., "is line clear?", "train entering")
-chan bellAB = [0] of {byte};
-chan bellBA = [0] of {byte};
-
-chan bellBC = [0] of {byte};
-chan bellCB = [0] of {byte};
-
-// Block instrument states: 0 = line_clear, 1 = line_ready, 2 = train_on_line
-byte instrAB = 0;
-byte instrBC = 0;
-
-//////////////////////////////////////////////////////////
-// PROCESS: SignalA – Train enters the first block
-//////////////////////////////////////////////////////////
-proctype SignalA() {
     do
-    :: 
-        CircuitA!1; // Ask SignalBoxA for permission to enter
-        SigChanA?1; // Wait for green light
-
-        // Now send the train into the first block
-        BlockSecAB!1;
+    :: // inform SignalBox that train is approaching
+    :: // get input colour from SignalBox -> if green -> allow out_track!train
     od
 }
 
-//////////////////////////////////////////////////////////
-// PROCESS: SignalB – Train moves from AB to BC
-//////////////////////////////////////////////////////////
-proctype SignalB() {
-    int train;
+proctype SignalBoxA(chan toSignal, fromSignal, bell in/out channels, instrument in channel) {
+    // local mtype variables for receiving bell and instrument communications
+
     do
-    ::
-        CircuitB!1;     // Ask SignalBoxB to proceed
-        SigChanB?1;     // Wait for green signal
-
-        BlockSecAB?train;
-        BlockSecBC!train;
-    od
-}
-
-//////////////////////////////////////////////////////////
-// PROCESS: SignalC – Train exits the final block
-//////////////////////////////////////////////////////////
-proctype SignalC() {
-    int train;
-    do
-    ::
-        CircuitC!1;    // Ask SignalBoxC for exit clearance
-        SigChanC?1;    // Wait for green signal
-
-        BlockSecBC?train;
-    od
-}
-
-//////////////////////////////////////////////////////////
-// PROCESS: SignalBoxA – Forwarding role only
-//////////////////////////////////////////////////////////
-proctype SignalBoxA() {
-    byte msg;
-    do
-    ::
-        CircuitA?msg;          // Wait for SignalA to request permission
-        bellAB!1;              // Send "call attention" to B
-        bellBA?msg;            // Wait for response
-
-        bellAB!2;              // Send "is line clear?"
-        bellBA?msg;            // Wait for response that it’s clear
-
-        // Wait for "line_ready" from SignalBoxB
+    :: //(fromSignal?[1]) - detect approaching train -> turn off train detection -> initiate protocol interaction with SignalBoxB 
+    :: // receive bell input ->
         if
-        :: instrAB == 1 ->    // Only give green if line_ready
-            SigChanA!1;
-            bellAB!3;         // Notify "train entering section"
-        fi
-    od
+        :: case of input 1 -> reaction 1
+        ::
+        ::
+        ::
+        
+train_out) -> turn on train detection back on again -> reaction 5
+:: case of (input fi
+:: // receive instrument input
+od
+
+
+proctype SignalB(chan in_track, out_track, toSigBox, fromSigBox) {
+}
+// analogous to SignalA
+proctype SignalBoxB (chan toSignal, fromSignal, bell, in/out channels, instrument in/out channels) {
+// local mtype variables for receiving bell and instrument communications
+do
+:: //(fromSignal?[1]) - detect approaching train -> turn off train detection -> initiate protocol interaction with SignalBoxC :: // receive bell input from SignalBoxA ->
+if
+:: case of input 1 -> reaction 1
+::
+:: case of input 4 -> reaction 4
+fi
+// Note: turn train detection on after finishing protocol interaction with SignalBoxA
+:: // receive bell input from SignalBoxC ->
+if
+:: case of input 1 -> reaction 1
+::
+::
+::
+:: case of (input == fi
+train_out) -> turn on train detection back on again -> reaction 5
+:: // receive instrument input
+od
 }
 
-//////////////////////////////////////////////////////////
-// PROCESS: SignalBoxB – Full control logic
-//////////////////////////////////////////////////////////
-proctype SignalBoxB() {
-    byte msg;
-    do
-    ::
-        bellAB?msg;    // Receive "call attention" from A
-        bellBA!msg;    // Acknowledge
 
-        bellAB?msg;    // Receive "is line clear?"
-        if
-        :: instrAB == 0 ->    // If line_clear
-            bellBA!msg;       // Acknowledge
-            instrAB = 1;      // Set to line_ready
-        fi
-
-        bellAB?msg;    // Receive "train entering"
-        instrAB = 2;   // Set to train_on_line
-
-        // Wait until train passes into BC
-        BlockSecAB?1;
-        BlockSecBC!1;
-
-        // Notify A that train has exited
-        bellBA!4;      // "train out of section"
-        instrAB = 0;   // Back to line_clear
-    od
+proctype signalc(chan in_track, toSigBox) {
 }
-
-//////////////////////////////////////////////////////////
-// PROCESS: SignalBoxC – Accepting role only
-//////////////////////////////////////////////////////////
-proctype SignalBoxC() {
-    byte msg;
-    do
-    ::
-        CircuitC?msg;
-        if
-        :: instrBC == 0 -> // If section BC is clear
-            instrBC = 2;   // Mark as occupied
-            SigChanC!1;    // Let train exit
-            instrBC = 0;   // After train passed, clear line
-        fi
-    od
+do
+:: in_track?train -> tosigBox!train
+od
+proctype SignalBoxC(chan fromSignal, bell_in, bell_out, instrument) {
 }
-
-//////////////////////////////////////////////////////////
-// MAIN INIT BLOCK
-//////////////////////////////////////////////////////////
+// local mtype variable for receiving bell communications
+do
+:: //(fromsignal? [1]) - detect approaching train -> turn off train detection -> send out attention bell output :: // receive bell input ->
+od
 init {
-    atomic {
-        run SignalA();
-        run SignalB();
-        run SignalC();
-
-        run SignalBoxA();
-        run SignalBoxB();
-        run SignalBoxC();
-    }
+if
+:: case of input 1 -> reaction 1
+፡፡
+::
+:: case of input 4 -> reaction 4
+fi
+atomic {
+run each proctype
 }
