@@ -33,7 +33,7 @@ proctype SignalBoxA(chan toSignal, fromSignal, bell in/out channels, instrument 
     ::
     ::
     ::
-    :: case of input 4 -> reaction 4
+    :: case of (input == train_out) -> turn on train detection back on again -> reaction 5
     fi
   :: // receive bell input ->
   od
